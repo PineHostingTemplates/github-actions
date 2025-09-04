@@ -1,0 +1,176 @@
+name: Update Template
+
+on:
+  workflow_call:
+    inputs:
+      template_id:
+        description: "The template ID to update"
+        required: true
+        type: string
+
+jobs:
+  update-template:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Read template config
+        id: read-config
+        run: |
+          if [ ! -f "template-config.json" ]; then
+            echo "template-config.json not found!"
+            exit 1
+          fi
+          
+          # Read and validate JSON
+          CONFIG=$(cat template-config.json)
+          echo "config<<EOF" >> $GITHUB_OUTPUT
+          echo "$CONFIG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Read README
+        id: read-readme
+        run: |
+          if [ -f "README.md" ]; then
+            README_CONTENT=$(cat README.md)
+            echo "readme<<EOF" >> $GITHUB_OUTPUT
+            echo "$README_CONTENT" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "README.md not found, using empty description"
+            echo "readme=" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Extract config values
+        id: extract-values
+        run: |
+          CONFIG='${{ steps.read-config.outputs.config }}'
+          
+          # Extract values from JSON using jq
+          NAME=$(echo "$CONFIG" | jq -r '.name // ""')
+          SHORT_DESC=$(echo "$CONFIG" | jq -r '.short_description // ""')
+          EGG_FEATURE=$(echo "$CONFIG" | jq -r '.egg_feature // ""')
+          CREATE_DB=$(echo "$CONFIG" | jq -r '.create_database // false')
+          IS_ACTIVE=$(echo "$CONFIG" | jq -r '.is_active // false')
+          AUTHOR=$(echo "$CONFIG" | jq -r '.author // ""')
+          ICON_URL=$(echo "$CONFIG" | jq -r '.icon_url // ""')
+          VIDEO_URL=$(echo "$CONFIG" | jq -r '.video_url // ""')
+          GITHUB_REPO=$(echo "$CONFIG" | jq -r '.github_repository // ""')
+          GITHUB_BRANCH=$(echo "$CONFIG" | jq -r '.github_branch // "main"')
+          VARIABLES=$(echo "$CONFIG" | jq -c '.variables // []')
+          
+          # Generate GitHub repository if not present
+          if [ -z "$GITHUB_REPO" ] || [ "$GITHUB_REPO" = "null" ]; then
+            GITHUB_REPO="${{ github.repository }}"
+          fi
+          
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+          echo "short_description=$SHORT_DESC" >> $GITHUB_OUTPUT
+          echo "egg_feature=$EGG_FEATURE" >> $GITHUB_OUTPUT
+          echo "create_database=$CREATE_DB" >> $GITHUB_OUTPUT
+          echo "is_active=$IS_ACTIVE" >> $GITHUB_OUTPUT
+          echo "author_name=$AUTHOR" >> $GITHUB_OUTPUT
+          echo "icon_url=$ICON_URL" >> $GITHUB_OUTPUT
+          echo "video_url=$VIDEO_URL" >> $GITHUB_OUTPUT
+          echo "github_repository=$GITHUB_REPO" >> $GITHUB_OUTPUT
+          echo "github_branch=$GITHUB_BRANCH" >> $GITHUB_OUTPUT
+          echo "variables<<EOF" >> $GITHUB_OUTPUT
+          echo "$VARIABLES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Create API payload
+        id: create-payload
+        run: |
+          # Create the JSON payload for the API request
+          PAYLOAD=$(jq -n \
+            --arg name "${{ steps.extract-values.outputs.name }}" \
+            --arg short_description "${{ steps.extract-values.outputs.short_description }}" \
+            --arg long_description "${{ steps.read-readme.outputs.readme }}" \
+            --arg egg_feature "${{ steps.extract-values.outputs.egg_feature }}" \
+            --argjson create_database "${{ steps.extract-values.outputs.create_database }}" \
+            --argjson is_active "${{ steps.extract-values.outputs.is_active }}" \
+            --arg author_name "${{ steps.extract-values.outputs.author_name }}" \
+            --arg icon_url "${{ steps.extract-values.outputs.icon_url }}" \
+            --arg video_url "${{ steps.extract-values.outputs.video_url }}" \
+            --arg github_repository "${{ steps.extract-values.outputs.github_repository }}" \
+            --arg github_branch "${{ steps.extract-values.outputs.github_branch }}" \
+            --argjson variables '${{ steps.extract-values.outputs.variables }}' \
+            '{
+              name: $name,
+              short_description: $short_description,
+              long_description: $long_description,
+              egg_feature: $egg_feature,
+              create_database: $create_database,
+              is_active: $is_active,
+              author_name: $author_name,
+              icon_url: $icon_url,
+              video_url: $video_url,
+              github_repository: $github_repository,
+              github_branch: $github_branch,
+              variables: $variables
+            }')
+          
+          echo "payload<<EOF" >> $GITHUB_OUTPUT
+          echo "$PAYLOAD" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Update template via API
+        run: |
+          # Save payload to file
+          echo '${{ steps.create-payload.outputs.payload }}' > payload.json
+          
+          echo "🔍 Request Details:"
+          echo "URL: ${{ vars.STAGING_API_BASE_URL }}/api/application/templates/${{ inputs.template_id }}"
+          echo "Method: PATCH"
+          echo "Headers: Authorization: Bearer [HIDDEN], Content-Type: application/json, Accept: application/vnd.pterodactyl.v1+json"
+          echo "Payload file: payload.json"
+          echo ""
+          
+          # Make the API request with PATCH
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\n" \
+            -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.STAGING_API_BEARER_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/vnd.pterodactyl.v1+json" \
+            --data-binary @payload.json \
+            "${{ vars.STAGING_API_BASE_URL }}/api/application/templates/${{ inputs.template_id }}")
+          
+          # Extract HTTP status and body
+          HTTP_BODY=$(echo "$RESPONSE" | sed '$d')
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1 | sed 's/HTTP_STATUS://')
+          
+          echo "📊 API Response:"
+          echo "Status: $HTTP_STATUS"
+          echo "Body:"
+          echo "$HTTP_BODY"
+          echo ""
+          
+          # Check success (2xx status codes)
+          if [[ "$HTTP_STATUS" -ge 200 && "$HTTP_STATUS" -lt 300 ]]; then
+            echo "✅ Template updated successfully!"
+            if command -v jq >/dev/null 2>&1; then
+              echo "$HTTP_BODY" | jq '.' 2>/dev/null || echo "$HTTP_BODY"
+            fi
+          else
+            echo "❌ Template update failed with status $HTTP_STATUS"
+            echo ""
+            echo "🔍 Troubleshooting:"
+            case "$HTTP_STATUS" in
+              401) echo "• Check if API Bearer Token secret is set correctly" ;;
+              403) echo "• Check if the token has permission to update templates" ;;
+              404) echo "• Check if TEMPLATE_ID (${{ inputs.template_id }}) exists" ;;
+              422) echo "• Check payload validation - see error details below" ;;
+              500) echo "• Server error - check API server logs" ;;
+              *) echo "• Unexpected error code" ;;
+            esac
+            echo ""
+            echo "📋 Error Details:"
+            if command -v jq >/dev/null 2>&1; then
+              echo "$HTTP_BODY" | jq '.' 2>/dev/null || echo "$HTTP_BODY"
+            else
+              echo "$HTTP_BODY"
+            fi
+            exit 1
+          fi
