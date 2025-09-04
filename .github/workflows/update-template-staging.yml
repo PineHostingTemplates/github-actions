@@ -7,13 +7,6 @@ on:
         description: "The template ID to update"
         required: true
         type: string
-    secrets:
-      STAGING_API_BEARER_TOKEN:
-        description: "Bearer token for API authentication"
-        required: true
-      STAGING_API_BASE_URL:
-        description: "Base URL for the API"
-        required: true
 
 jobs:
   update-template:
