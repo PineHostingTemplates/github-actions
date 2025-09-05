@@ -7,6 +7,14 @@ on:
         description: "The template ID to update"
         required: true
         type: string
+      api_base_url:
+        description: "Base URL for the API"
+        required: true
+        type: string
+    secrets:
+      api_bearer_token:
+        description: "Bearer token for API authentication"
+        required: true
 
 jobs:
   update-template:
@@ -122,7 +130,7 @@ jobs:
           echo '${{ steps.create-payload.outputs.payload }}' > payload.json
           
           echo "🔍 Request Details:"
-          echo "URL: ${{ secrets.STAGING_API_BASE_URL }}/api/application/templates/${{ inputs.template_id }}"
+          echo "URL: ${{ inputs.api_base_url }}/api/application/templates/${{ inputs.template_id }}"
           echo "Method: PATCH"
           echo "Headers: Authorization: Bearer [HIDDEN], Content-Type: application/json, Accept: application/vnd.pterodactyl.v1+json"
           echo "Payload file: payload.json"
@@ -131,11 +139,11 @@ jobs:
           # Make the API request with PATCH
           RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\n" \
             -X PATCH \
-            -H "Authorization: Bearer ${{ secrets.STAGING_API_BEARER_TOKEN }}" \
+            -H "Authorization: Bearer ${{ secrets.api_bearer_token }}" \
             -H "Content-Type: application/json" \
             -H "Accept: application/vnd.pterodactyl.v1+json" \
             --data-binary @payload.json \
-            "${{ vars.STAGING_API_BASE_URL }}/api/application/templates/${{ inputs.template_id }}")
+            "${{ inputs.api_base_url }}/api/application/templates/${{ inputs.template_id }}")
           
           # Extract HTTP status and body
           HTTP_BODY=$(echo "$RESPONSE" | sed '$d')
