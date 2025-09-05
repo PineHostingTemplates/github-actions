@@ -65,14 +65,11 @@ jobs:
           AUTHOR=$(echo "$CONFIG" | jq -r '.author // ""')
           ICON_URL=$(echo "$CONFIG" | jq -r '.icon_url // ""')
           VIDEO_URL=$(echo "$CONFIG" | jq -r '.video_url // ""')
-          GITHUB_REPO=$(echo "$CONFIG" | jq -r '.github_repository // ""')
-          GITHUB_BRANCH=$(echo "$CONFIG" | jq -r '.github_branch // "main"')
           VARIABLES=$(echo "$CONFIG" | jq -c '.variables // []')
           
-          # Generate GitHub repository if not present
-          if [ -z "$GITHUB_REPO" ] || [ "$GITHUB_REPO" = "null" ]; then
-            GITHUB_REPO="${{ github.repository }}"
-          fi
+          # Always use the actual repository and branch from the workflow context
+          GITHUB_REPO="${{ github.repository }}"
+          GITHUB_BRANCH="${{ github.ref_name }}"
           
           echo "name=$NAME" >> $GITHUB_OUTPUT
           echo "short_description=$SHORT_DESC" >> $GITHUB_OUTPUT
