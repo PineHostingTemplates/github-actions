@@ -41,18 +41,19 @@ jobs:
       - name: Extract config values
         id: extract-values
         run: |
-          CONFIG='${{ steps.read-config.outputs.config }}'
+          # Write the config to a temporary file to avoid shell escaping issues
+          echo '${{ steps.read-config.outputs.config }}' > temp_config.json
           
-          # Extract values from JSON using jq
-          NAME=$(echo "$CONFIG" | jq -r '.name // ""')
-          SHORT_DESC=$(echo "$CONFIG" | jq -r '.short_description // ""')
-          EGG_FEATURE=$(echo "$CONFIG" | jq -r '.egg_feature // ""')
-          CREATE_DB=$(echo "$CONFIG" | jq -r '.create_database // false')
-          IS_ACTIVE=$(echo "$CONFIG" | jq -r '.is_active // false')
-          AUTHOR=$(echo "$CONFIG" | jq -r '.author // ""')
-          ICON_URL=$(echo "$CONFIG" | jq -r '.icon_url // ""')
-          VIDEO_URL=$(echo "$CONFIG" | jq -r '.video_url // ""')
-          VARIABLES=$(echo "$CONFIG" | jq -c '.variables // []')
+          # Extract values from JSON using jq from the file
+          NAME=$(jq -r '.name // ""' temp_config.json)
+          SHORT_DESC=$(jq -r '.short_description // ""' temp_config.json)
+          EGG_FEATURE=$(jq -r '.egg_feature // ""' temp_config.json)
+          CREATE_DB=$(jq -r '.create_database // false' temp_config.json)
+          IS_ACTIVE=$(jq -r '.is_active // false' temp_config.json)
+          AUTHOR=$(jq -r '.author // ""' temp_config.json)
+          ICON_URL=$(jq -r '.icon_url // ""' temp_config.json)
+          VIDEO_URL=$(jq -r '.video_url // ""' temp_config.json)
+          VARIABLES=$(jq -c '.variables // []' temp_config.json)
           
           # Always use the actual repository and branch from the workflow context
           GITHUB_REPO="${{ github.repository }}"
@@ -71,6 +72,9 @@ jobs:
           echo "variables<<EOF" >> $GITHUB_OUTPUT
           echo "$VARIABLES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Clean up temporary file
+          rm temp_config.json
       
       - name: Create API payload
         run: |
