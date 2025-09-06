@@ -38,19 +38,6 @@ jobs:
           echo "$CONFIG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
       
-      - name: Read README
-        id: read-readme
-        run: |
-          if [ -f "README.md" ]; then
-            README_CONTENT=$(cat README.md)
-            echo "readme<<EOF" >> $GITHUB_OUTPUT
-            echo "$README_CONTENT" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            echo "README.md not found, using empty description"
-            echo "readme=" >> $GITHUB_OUTPUT
-          fi
-      
       - name: Extract config values
         id: extract-values
         run: |
@@ -86,51 +73,85 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
       
       - name: Create API payload
-        id: create-payload
         run: |
-          # Create the JSON payload for the API request
-          PAYLOAD=$(jq -n \
-            --arg name "${{ steps.extract-values.outputs.name }}" \
-            --arg short_description "${{ steps.extract-values.outputs.short_description }}" \
-            --arg long_description "${{ steps.read-readme.outputs.readme }}" \
-            --arg egg_feature "${{ steps.extract-values.outputs.egg_feature }}" \
-            --argjson create_database "${{ steps.extract-values.outputs.create_database }}" \
-            --argjson is_active "${{ steps.extract-values.outputs.is_active }}" \
-            --arg author_name "${{ steps.extract-values.outputs.author_name }}" \
-            --arg icon_url "${{ steps.extract-values.outputs.icon_url }}" \
-            --arg video_url "${{ steps.extract-values.outputs.video_url }}" \
-            --arg github_repository "${{ steps.extract-values.outputs.github_repository }}" \
-            --arg github_branch "${{ steps.extract-values.outputs.github_branch }}" \
-            --argjson variables '${{ steps.extract-values.outputs.variables }}' \
-            '{
-              name: $name,
-              short_description: $short_description,
-              long_description: $long_description,
-              egg_feature: $egg_feature,
-              create_database: $create_database,
-              is_active: $is_active,
-              author_name: $author_name,
-              icon_url: $icon_url,
-              video_url: $video_url,
-              github_repository: $github_repository,
-              github_branch: $github_branch,
-              variables: $variables
-            }')
+          # Create temp files for safe handling
+          echo '${{ steps.extract-values.outputs.variables }}' > variables.json
           
-          echo "payload<<EOF" >> $GITHUB_OUTPUT
-          echo "$PAYLOAD" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # Handle README content safely - use empty string if no README
+          if [ -f "README.md" ]; then
+            # README exists, use it
+            jq -n \
+              --arg name "${{ steps.extract-values.outputs.name }}" \
+              --arg short_description "${{ steps.extract-values.outputs.short_description }}" \
+              --rawfile long_description "README.md" \
+              --arg egg_feature "${{ steps.extract-values.outputs.egg_feature }}" \
+              --argjson create_database "${{ steps.extract-values.outputs.create_database }}" \
+              --argjson is_active "${{ steps.extract-values.outputs.is_active }}" \
+              --arg author_name "${{ steps.extract-values.outputs.author_name }}" \
+              --arg icon_url "${{ steps.extract-values.outputs.icon_url }}" \
+              --arg video_url "${{ steps.extract-values.outputs.video_url }}" \
+              --arg github_repository "${{ steps.extract-values.outputs.github_repository }}" \
+              --arg github_branch "${{ steps.extract-values.outputs.github_branch }}" \
+              --slurpfile variables variables.json \
+              '{
+                name: $name,
+                short_description: $short_description,
+                long_description: $long_description,
+                egg_feature: $egg_feature,
+                create_database: $create_database,
+                is_active: $is_active,
+                author_name: $author_name,
+                icon_url: $icon_url,
+                video_url: $video_url,
+                github_repository: $github_repository,
+                github_branch: $github_branch,
+                variables: $variables[0]
+              }' > payload.json
+          else
+            # No README, use empty string
+            jq -n \
+              --arg name "${{ steps.extract-values.outputs.name }}" \
+              --arg short_description "${{ steps.extract-values.outputs.short_description }}" \
+              --arg long_description "" \
+              --arg egg_feature "${{ steps.extract-values.outputs.egg_feature }}" \
+              --argjson create_database "${{ steps.extract-values.outputs.create_database }}" \
+              --argjson is_active "${{ steps.extract-values.outputs.is_active }}" \
+              --arg author_name "${{ steps.extract-values.outputs.author_name }}" \
+              --arg icon_url "${{ steps.extract-values.outputs.icon_url }}" \
+              --arg video_url "${{ steps.extract-values.outputs.video_url }}" \
+              --arg github_repository "${{ steps.extract-values.outputs.github_repository }}" \
+              --arg github_branch "${{ steps.extract-values.outputs.github_branch }}" \
+              --slurpfile variables variables.json \
+              '{
+                name: $name,
+                short_description: $short_description,
+                long_description: $long_description,
+                egg_feature: $egg_feature,
+                create_database: $create_database,
+                is_active: $is_active,
+                author_name: $author_name,
+                icon_url: $icon_url,
+                video_url: $video_url,
+                github_repository: $github_repository,
+                github_branch: $github_branch,
+                variables: $variables[0]
+              }' > payload.json
+          fi
+          
+          # Clean up temp file
+          rm -f variables.json
       
       - name: Update template via API
         run: |
-          # Save payload to file
-          echo '${{ steps.create-payload.outputs.payload }}' > payload.json
-          
           echo "🔍 Request Details:"
           echo "URL: ${{ inputs.api_base_url }}/api/application/templates/${{ inputs.template_id }}"
           echo "Method: PATCH"
           echo "Headers: Authorization: Bearer [HIDDEN], Content-Type: application/json, Accept: application/vnd.pterodactyl.v1+json"
           echo "Payload file: payload.json"
+          echo ""
+          
+          # Show payload size for debugging
+          echo "📋 Payload size: $(wc -c < payload.json) bytes"
           echo ""
           
           # Make the API request with PATCH
