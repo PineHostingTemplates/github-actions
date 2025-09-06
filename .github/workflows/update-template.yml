@@ -24,62 +24,73 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       
-      - name: Read template config
-        id: read-config
+      - name: Validate template config exists
         run: |
           if [ ! -f "template-config.json" ]; then
             echo "template-config.json not found!"
             exit 1
           fi
           
-          # Read and validate JSON
-          CONFIG=$(cat template-config.json)
-          echo "config<<EOF" >> $GITHUB_OUTPUT
-          echo "$CONFIG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # Validate JSON syntax
+          if ! jq empty template-config.json; then
+            echo "template-config.json is not valid JSON!"
+            exit 1
+          fi
+          
+          echo "✅ template-config.json found and is valid JSON"
       
       - name: Extract config values
         id: extract-values
         run: |
-          # Write the config to a temporary file to avoid shell escaping issues
-          echo '${{ steps.read-config.outputs.config }}' > temp_config.json
-          
-          # Extract values from JSON using jq from the file
-          NAME=$(jq -r '.name // ""' temp_config.json)
-          SHORT_DESC=$(jq -r '.short_description // ""' temp_config.json)
-          EGG_FEATURE=$(jq -r '.egg_feature // ""' temp_config.json)
-          CREATE_DB=$(jq -r '.create_database // false' temp_config.json)
-          IS_ACTIVE=$(jq -r '.is_active // false' temp_config.json)
-          AUTHOR=$(jq -r '.author // ""' temp_config.json)
-          ICON_URL=$(jq -r '.icon_url // ""' temp_config.json)
-          VIDEO_URL=$(jq -r '.video_url // ""' temp_config.json)
-          VARIABLES=$(jq -c '.variables // []' temp_config.json)
+          # Extract values directly from the template-config.json file
+          NAME=$(jq -r '.name // ""' template-config.json)
+          SHORT_DESC=$(jq -r '.short_description // ""' template-config.json)
+          EGG_FEATURE=$(jq -r '.egg_feature // ""' template-config.json)
+          CREATE_DB=$(jq -r '.create_database // false' template-config.json)
+          IS_ACTIVE=$(jq -r '.is_active // false' template-config.json)
+          AUTHOR=$(jq -r '.author // ""' template-config.json)
+          ICON_URL=$(jq -r '.icon_url // ""' template-config.json)
+          VIDEO_URL=$(jq -r '.video_url // ""' template-config.json)
           
           # Always use the actual repository and branch from the workflow context
           GITHUB_REPO="${{ github.repository }}"
           GITHUB_BRANCH="${{ github.ref_name }}"
           
-          echo "name=$NAME" >> $GITHUB_OUTPUT
-          echo "short_description=$SHORT_DESC" >> $GITHUB_OUTPUT
-          echo "egg_feature=$EGG_FEATURE" >> $GITHUB_OUTPUT
-          echo "create_database=$CREATE_DB" >> $GITHUB_OUTPUT
-          echo "is_active=$IS_ACTIVE" >> $GITHUB_OUTPUT
-          echo "author_name=$AUTHOR" >> $GITHUB_OUTPUT
-          echo "icon_url=$ICON_URL" >> $GITHUB_OUTPUT
-          echo "video_url=$VIDEO_URL" >> $GITHUB_OUTPUT
-          echo "github_repository=$GITHUB_REPO" >> $GITHUB_OUTPUT
-          echo "github_branch=$GITHUB_BRANCH" >> $GITHUB_OUTPUT
-          echo "variables<<EOF" >> $GITHUB_OUTPUT
-          echo "$VARIABLES" >> $GITHUB_OUTPUT
+          # Use proper escaping for multiline output
+          echo "name<<EOF" >> $GITHUB_OUTPUT
+          echo "$NAME" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
           
-          # Clean up temporary file
-          rm temp_config.json
+          echo "short_description<<EOF" >> $GITHUB_OUTPUT
+          echo "$SHORT_DESC" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "egg_feature<<EOF" >> $GITHUB_OUTPUT
+          echo "$EGG_FEATURE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "create_database=$CREATE_DB" >> $GITHUB_OUTPUT
+          echo "is_active=$IS_ACTIVE" >> $GITHUB_OUTPUT
+          
+          echo "author_name<<EOF" >> $GITHUB_OUTPUT
+          echo "$AUTHOR" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "icon_url<<EOF" >> $GITHUB_OUTPUT
+          echo "$ICON_URL" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "video_url<<EOF" >> $GITHUB_OUTPUT
+          echo "$VIDEO_URL" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "github_repository=$GITHUB_REPO" >> $GITHUB_OUTPUT
+          echo "github_branch=$GITHUB_BRANCH" >> $GITHUB_OUTPUT
       
       - name: Create API payload
         run: |
-          # Create temp files for safe handling
-          echo '${{ steps.extract-values.outputs.variables }}' > variables.json
+          # Extract variables directly from template-config.json to avoid any shell escaping issues
+          jq -c '.variables // []' template-config.json > variables.json
           
           # Handle README content safely - use empty string if no README
           if [ -f "README.md" ]; then
@@ -144,6 +155,8 @@ jobs:
           
           # Clean up temp file
           rm -f variables.json
+          
+          echo "✅ API payload created successfully"
       
       - name: Update template via API
         run: |
