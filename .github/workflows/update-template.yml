@@ -92,6 +92,9 @@ jobs:
           # Extract variables directly from template-config.json to avoid any shell escaping issues
           jq -c '.variables // []' template-config.json > variables.json
           
+          # Extract required_files directly from template-config.json (empty array if not present)
+          jq -c '.required_files // []' template-config.json > required_files.json
+          
           # Handle README content safely - use empty string if no README
           if [ -f "README.md" ]; then
             # README exists, use it
@@ -108,6 +111,7 @@ jobs:
               --arg github_repository "${{ steps.extract-values.outputs.github_repository }}" \
               --arg github_branch "${{ steps.extract-values.outputs.github_branch }}" \
               --slurpfile variables variables.json \
+              --slurpfile required_files required_files.json \
               '{
                 name: $name,
                 short_description: $short_description,
@@ -120,7 +124,8 @@ jobs:
                 video_url: $video_url,
                 github_repository: $github_repository,
                 github_branch: $github_branch,
-                variables: $variables[0]
+                variables: $variables[0],
+                required_files: $required_files[0]
               }' > payload.json
           else
             # No README, use empty string
@@ -137,6 +142,7 @@ jobs:
               --arg github_repository "${{ steps.extract-values.outputs.github_repository }}" \
               --arg github_branch "${{ steps.extract-values.outputs.github_branch }}" \
               --slurpfile variables variables.json \
+              --slurpfile required_files required_files.json \
               '{
                 name: $name,
                 short_description: $short_description,
@@ -149,18 +155,19 @@ jobs:
                 video_url: $video_url,
                 github_repository: $github_repository,
                 github_branch: $github_branch,
-                variables: $variables[0]
+                variables: $variables[0],
+                required_files: $required_files[0]
               }' > payload.json
           fi
           
-          # Clean up temp file
-          rm -f variables.json
+          # Clean up temp files
+          rm -f variables.json required_files.json
           
           echo "✅ API payload created successfully"
       
       - name: Update template via API
         run: |
-          echo "🔍 Request Details:"
+          echo "🚀 Request Details:"
           echo "URL: ${{ inputs.api_base_url }}/api/application/templates/${{ inputs.template_id }}"
           echo "Method: PATCH"
           echo "Headers: Authorization: Bearer [HIDDEN], Content-Type: application/json, Accept: application/vnd.pterodactyl.v1+json"
