@@ -50,7 +50,6 @@ jobs:
           IS_ACTIVE=$(jq -r '.is_active // false' template-config.json)
           AUTHOR=$(jq -r '.author // ""' template-config.json)
           ICON_URL=$(jq -r '.icon_url // ""' template-config.json)
-          VIDEO_URL=$(jq -r '.video_url // ""' template-config.json)
           
           # Always use the actual repository and branch from the workflow context
           GITHUB_REPO="${{ github.repository }}"
@@ -80,10 +79,6 @@ jobs:
           echo "$ICON_URL" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
           
-          echo "video_url<<EOF" >> $GITHUB_OUTPUT
-          echo "$VIDEO_URL" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          
           echo "github_repository=$GITHUB_REPO" >> $GITHUB_OUTPUT
           echo "github_branch=$GITHUB_BRANCH" >> $GITHUB_OUTPUT
       
@@ -94,6 +89,9 @@ jobs:
           
           # Extract required_files directly from template-config.json (empty array if not present)
           jq -c '.required_files // []' template-config.json > required_files.json
+          
+          # Extract media_urls directly from template-config.json (empty array if not present)
+          jq -c '.media_urls // []' template-config.json > media_urls.json
           
           # Handle README content safely - use empty string if no README
           if [ -f "README.md" ]; then
@@ -107,11 +105,11 @@ jobs:
               --argjson is_active "${{ steps.extract-values.outputs.is_active }}" \
               --arg author_name "${{ steps.extract-values.outputs.author_name }}" \
               --arg icon_url "${{ steps.extract-values.outputs.icon_url }}" \
-              --arg video_url "${{ steps.extract-values.outputs.video_url }}" \
               --arg github_repository "${{ steps.extract-values.outputs.github_repository }}" \
               --arg github_branch "${{ steps.extract-values.outputs.github_branch }}" \
               --slurpfile variables variables.json \
               --slurpfile required_files required_files.json \
+              --slurpfile media_urls media_urls.json \
               '{
                 name: $name,
                 short_description: $short_description,
@@ -121,9 +119,9 @@ jobs:
                 is_active: $is_active,
                 author_name: $author_name,
                 icon_url: $icon_url,
-                video_url: $video_url,
                 github_repository: $github_repository,
                 github_branch: $github_branch,
+                media_urls: $media_urls[0],
                 variables: $variables[0],
                 required_files: $required_files[0]
               }' > payload.json
@@ -138,11 +136,11 @@ jobs:
               --argjson is_active "${{ steps.extract-values.outputs.is_active }}" \
               --arg author_name "${{ steps.extract-values.outputs.author_name }}" \
               --arg icon_url "${{ steps.extract-values.outputs.icon_url }}" \
-              --arg video_url "${{ steps.extract-values.outputs.video_url }}" \
               --arg github_repository "${{ steps.extract-values.outputs.github_repository }}" \
               --arg github_branch "${{ steps.extract-values.outputs.github_branch }}" \
               --slurpfile variables variables.json \
               --slurpfile required_files required_files.json \
+              --slurpfile media_urls media_urls.json \
               '{
                 name: $name,
                 short_description: $short_description,
@@ -152,16 +150,16 @@ jobs:
                 is_active: $is_active,
                 author_name: $author_name,
                 icon_url: $icon_url,
-                video_url: $video_url,
                 github_repository: $github_repository,
                 github_branch: $github_branch,
+                media_urls: $media_urls[0],
                 variables: $variables[0],
                 required_files: $required_files[0]
               }' > payload.json
           fi
           
           # Clean up temp files
-          rm -f variables.json required_files.json
+          rm -f variables.json required_files.json media_urls.json
           
           echo "✅ API payload created successfully"
       
