@@ -50,6 +50,7 @@ jobs:
           IS_ACTIVE=$(jq -r '.is_active // false' template-config.json)
           AUTHOR=$(jq -r '.author // ""' template-config.json)
           ICON_URL=$(jq -r '.icon_url // ""' template-config.json)
+          MINIMUM_RAM=$(jq -r '.minimum_ram // null' template-config.json)
           
           # Always use the actual repository and branch from the workflow context
           GITHUB_REPO="${{ github.repository }}"
@@ -79,6 +80,8 @@ jobs:
           echo "$ICON_URL" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
           
+          echo "minimum_ram=$MINIMUM_RAM" >> $GITHUB_OUTPUT
+          
           echo "github_repository=$GITHUB_REPO" >> $GITHUB_OUTPUT
           echo "github_branch=$GITHUB_BRANCH" >> $GITHUB_OUTPUT
       
@@ -105,6 +108,7 @@ jobs:
               --argjson is_active "${{ steps.extract-values.outputs.is_active }}" \
               --arg author_name "${{ steps.extract-values.outputs.author_name }}" \
               --arg icon_url "${{ steps.extract-values.outputs.icon_url }}" \
+              --argjson minimum_ram "${{ steps.extract-values.outputs.minimum_ram }}" \
               --arg github_repository "${{ steps.extract-values.outputs.github_repository }}" \
               --arg github_branch "${{ steps.extract-values.outputs.github_branch }}" \
               --slurpfile variables variables.json \
@@ -119,6 +123,7 @@ jobs:
                 is_active: $is_active,
                 author_name: $author_name,
                 icon_url: $icon_url,
+                minimum_ram: $minimum_ram,
                 github_repository: $github_repository,
                 github_branch: $github_branch,
                 media_urls: $media_urls[0],
@@ -136,6 +141,7 @@ jobs:
               --argjson is_active "${{ steps.extract-values.outputs.is_active }}" \
               --arg author_name "${{ steps.extract-values.outputs.author_name }}" \
               --arg icon_url "${{ steps.extract-values.outputs.icon_url }}" \
+              --argjson minimum_ram "${{ steps.extract-values.outputs.minimum_ram }}" \
               --arg github_repository "${{ steps.extract-values.outputs.github_repository }}" \
               --arg github_branch "${{ steps.extract-values.outputs.github_branch }}" \
               --slurpfile variables variables.json \
@@ -150,6 +156,7 @@ jobs:
                 is_active: $is_active,
                 author_name: $author_name,
                 icon_url: $icon_url,
+                minimum_ram: $minimum_ram,
                 github_repository: $github_repository,
                 github_branch: $github_branch,
                 media_urls: $media_urls[0],
